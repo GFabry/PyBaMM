@@ -15,19 +15,26 @@ class DischargeThroughput(BaseModel):
         # Throughput capacity (cumulative)
         Qt_Ah = pybamm.Variable("Throughput capacity [A.h]")
         Qt_Ah.print_name = "Qt_Ah"
+        # Step capacity (resets each step)
+        Qs_Ah = pybamm.Variable("Step capacity [A.h]")
+        Qs_Ah.print_name = "Qs_Ah"
 
         variables = {
             "Discharge capacity [A.h]": Q_Ah,
             "Throughput capacity [A.h]": Qt_Ah,
+            "Step capacity [A.h]": Qs_Ah,
         }
         if self.options["calculate discharge energy"] == "true":
             Q_Wh = pybamm.Variable("Discharge energy [W.h]")
             # Throughput energy (cumulative)
             Qt_Wh = pybamm.Variable("Throughput energy [W.h]")
+            # Step energy (resets each step)
+            Qs_Wh = pybamm.Variable("Step energy [W.h]")
             variables.update(
                 {
                     "Discharge energy [W.h]": Q_Wh,
                     "Throughput energy [W.h]": Qt_Wh,
+                    "Step energy [W.h]": Qs_Wh,
                 }
             )
         else:
@@ -35,6 +42,7 @@ class DischargeThroughput(BaseModel):
                 {
                     "Discharge energy [W.h]": pybamm.Scalar(0),
                     "Throughput energy [W.h]": pybamm.Scalar(0),
+                    "Step energy [W.h]": pybamm.Scalar(0),
                 }
             )
         return variables
@@ -42,24 +50,32 @@ class DischargeThroughput(BaseModel):
     def set_initial_conditions(self, variables):
         Q_Ah = variables["Discharge capacity [A.h]"]
         Qt_Ah = variables["Throughput capacity [A.h]"]
+        Qs_Ah = variables["Step capacity [A.h]"]
         self.initial_conditions[Q_Ah] = pybamm.Scalar(0)
         self.initial_conditions[Qt_Ah] = pybamm.Scalar(0)
+        self.initial_conditions[Qs_Ah] = pybamm.Scalar(0)
         if self.options["calculate discharge energy"] == "true":
             Q_Wh = variables["Discharge energy [W.h]"]
             Qt_Wh = variables["Throughput energy [W.h]"]
+            Qs_Wh = variables["Step energy [W.h]"]
             self.initial_conditions[Q_Wh] = pybamm.Scalar(0)
             self.initial_conditions[Qt_Wh] = pybamm.Scalar(0)
+            self.initial_conditions[Qs_Wh] = pybamm.Scalar(0)
 
     def set_rhs(self, variables):
         # ODEs for discharge capacity and throughput capacity
         Q_Ah = variables["Discharge capacity [A.h]"]
         Qt_Ah = variables["Throughput capacity [A.h]"]
+        Qs_Ah = variables["Step capacity [A.h]"]
         I = variables["Current [A]"]
         self.rhs[Q_Ah] = I / 3600  # Returns to zero after a complete cycle
         self.rhs[Qt_Ah] = abs(I) / 3600  # Increases with each cycle
+        self.rhs[Qs_Ah] = abs(I) / 3600  # Resets each step
         if self.options["calculate discharge energy"] == "true":
             Q_Wh = variables["Discharge energy [W.h]"]
             Qt_Wh = variables["Throughput energy [W.h]"]
+            Qs_Wh = variables["Step energy [W.h]"]
             V = variables["Voltage [V]"]
             self.rhs[Q_Wh] = I * V / 3600  # Returns to zero after a complete cycle
             self.rhs[Qt_Wh] = abs(I * V) / 3600  # Increases with each cycle
+            self.rhs[Qs_Wh] = abs(I * V) / 3600  # Resets each step

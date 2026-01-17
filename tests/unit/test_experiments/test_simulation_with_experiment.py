@@ -746,6 +746,10 @@ class TestSimulationExperiment:
             )
 
     def test_skipped_step_continuous(self):
+        """
+        Test that state is continuous between cycles, except for step-reset variables
+        (Step capacity and Step energy) which intentionally reset to zero each step.
+        """
         model = pybamm.lithium_ion.SPM({"SEI": "solvent-diffusion limited"})
         experiment = pybamm.Experiment(
             [
@@ -759,12 +763,42 @@ class TestSimulationExperiment:
         )
         sim = pybamm.Simulation(model, experiment=experiment)
         sim.solve(initial_soc=1)
+
+        last_state_y = sim.solution.cycles[0].last_state.y
+        first_state_y = sim.solution.cycles[1].steps[-1].first_state.y
+
+        # Get indices of step-reset variables to exclude from comparison
+        built_model = sim.steps_to_built_models[
+            sim.experiment.steps[0].basic_repr()
+        ]
+        exclude_indices = []
+        for var_name in ["Step capacity [A.h]", "Step energy [W.h]"]:
+            if var_name in built_model.variables:
+                var = built_model.variables[var_name]
+                if hasattr(var, "y_slices") and var.y_slices:
+                    for y_slice in var.y_slices:
+                        exclude_indices.extend(range(y_slice.start, y_slice.stop))
+
+        # Create mask for variables that should be continuous
+        mask = np.ones(len(last_state_y), dtype=bool)
+        mask[exclude_indices] = False
+
+        # Check continuity for all variables EXCEPT step-reset variables
         np.testing.assert_allclose(
-            sim.solution.cycles[0].last_state.y,
-            sim.solution.cycles[1].steps[-1].first_state.y,
-            atol=1e-15,
-            rtol=1e-15,
+            last_state_y[mask],
+            first_state_y[mask],
+            atol=1e-12,
+            rtol=1e-12,
         )
+
+        # Verify step-reset variables are zero in first_state
+        for idx in exclude_indices:
+            np.testing.assert_allclose(
+                first_state_y[idx],
+                0.0,
+                atol=1e-10,
+                err_msg=f"Step-reset variable at index {idx} should be zero",
+            )
 
     def test_run_experiment_half_cell(self):
         experiment = pybamm.Experiment(

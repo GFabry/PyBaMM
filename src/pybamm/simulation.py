@@ -14,6 +14,11 @@ from pybamm.expression_tree.operations.serialise import Serialise
 from pybamm.models.base_model import ModelSolutionObservability
 from pybamm.util import import_optional_dependency
 
+# Variables that should be reset to zero at the start of each experiment step
+STEP_RESET_VARIABLES = [
+    "Step capacity [A.h]",
+    "Step energy [W.h]",
+]
 
 def is_notebook():
     try:
@@ -849,6 +854,10 @@ class Simulation:
 
                     step_termination = step_solution.termination
 
+                    # Reset step variables (Step capacity, Step energy) to zero
+                    # so the next step starts fresh
+                    self._reset_step_variables(step_solution, model)
+
                     # Add a padding rest step if necessary
                     if step.next_start_time is not None:
                         rest_time = (
@@ -1063,6 +1072,45 @@ class Simulation:
         )
 
         return step_solution_with_rest
+
+    def _reset_step_variables(self, solution, model):
+        """
+        Reset step variables (Step capacity, Step energy) to zero in the solution.
+
+        This modifies the solution's y array so that when the next step uses
+        set_initial_conditions_from(), these variables start from zero.
+
+        Parameters
+        ----------
+        solution : pybamm.Solution
+            The solution from the current step
+        model : pybamm.BaseModel
+            The model being solved
+
+        Returns
+        -------
+        pybamm.Solution
+            The solution with step variables reset to zero at the final state
+        """
+        if isinstance(solution, pybamm.EmptySolution):
+            return solution
+
+        for var_name in STEP_RESET_VARIABLES:
+            if var_name in model.variables:
+                try:
+                    # Get the variable from the model
+                    var = model.variables[var_name]
+                    # Check if it's a state variable with y_slices
+                    if hasattr(var, "y_slices") and var.y_slices:
+                        # Get the slice for this variable
+                        y_slice = var.y_slices[0]
+                        # Set the final value to zero (this is what set_initial_conditions_from uses)
+                        solution.y[:, -1][y_slice] = 0.0
+                except (KeyError, AttributeError, IndexError):
+                    # Variable not found or not a state variable, skip
+                    pass
+
+        return solution
 
     def step(
         self,
