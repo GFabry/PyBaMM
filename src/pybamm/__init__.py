@@ -190,8 +190,10 @@ from .solvers.idaklu_solver import IDAKLUSolver
 
 # Experiments
 from .experiment.experiment import Experiment
+from .experiment.experiment_advanced import ExperimentAdvanced
 from . import experiment
 from .experiment import step
+from .experiment.step import steps_dt
 
 # Plotting
 from .plotting.quick_plot import QuickPlot, close_plots, QuickPlotAxes
@@ -206,6 +208,7 @@ from .plotting.plot_3d_heatmap import plot_3d_heatmap
 
 # Simulation
 from .simulation import Simulation, load_sim, is_notebook
+from .simulation_advanced import SimulationAdvanced
 
 # Batch Study
 from .batch_study import BatchStudy
